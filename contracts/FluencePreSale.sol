@@ -136,6 +136,7 @@ contract FluencePreSale is Haltable {
     uint256 public softCap = 1000 ether;
 
     // Basic price
+    uint256 public constant basicThreshold = 500 finney;
     uint public constant basicTokensPerEth = 1500;
 
     // Advanced price
@@ -175,7 +176,7 @@ contract FluencePreSale is Haltable {
     }
 
     modifier duringPresale {
-        require(block.number >= startAtBlock && block.number <= endAtBlock);
+        require(block.number >= startAtBlock && block.number <= endAtBlock && totalSupply < SUPPLY_LIMIT);
         _;
     }
 
@@ -202,7 +203,7 @@ contract FluencePreSale is Haltable {
     }
 
     function contribute(address _address) private stopInEmergency duringPresale {
-        require(msg.value >= 0.5 ether); // Minimal contribution
+        require(msg.value >= basicThreshold || owner == _address); // Minimal contribution
 
         uint256 tokensToIssue;
 
