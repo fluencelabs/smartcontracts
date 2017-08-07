@@ -1,0 +1,11 @@
+{
+  "name": "smartcontract",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "run": "truffle build"
+  },
+  "dependencies": {
+    "truffle": "^3.4.7"
+  }
+}
