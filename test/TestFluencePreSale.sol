@@ -21,7 +21,7 @@ contract TestFluencePreSale {
 
     Assert.equal(fluence.owner(), tx.origin, "Owner must be set to sender");
 
-    fluence.transfer.value(1 ether).gas(210000)();
+    assert(fluence.call.gas(3000000).value(1 ether)());
 
     assert(fluence.balanceOf(tx.origin) == 1500);
 

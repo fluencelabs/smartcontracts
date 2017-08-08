@@ -1,50 +1,26 @@
 pragma solidity ^0.4.13;
 
 
-/**
- * Math operations with safety checks
- */
-library SafeMath {
-    function mul(uint256 a, uint256 b) internal returns (uint256) {
-        uint256 c = a * b;
-        assert(a == 0 || c / a == b);
-        return c;
+/* taking ideas from FirstBlood token */
+contract SafeMath {
+
+    function safeAdd(uint256 x, uint256 y) internal returns(uint256) {
+        uint256 z = x + y;
+        assert((z >= x) && (z >= y));
+        return z;
     }
 
-    function div(uint256 a, uint256 b) internal returns (uint256) {
-        // assert(b > 0); // Solidity automatically throws when dividing by 0
-        uint256 c = a / b;
-        // assert(a == b * c + a % b); // There is no case in which this doesn't hold
-        return c;
+    function safeSubtract(uint256 x, uint256 y) internal returns(uint256) {
+        assert(x >= y);
+        uint256 z = x - y;
+        return z;
     }
 
-    function sub(uint256 a, uint256 b) internal returns (uint256) {
-        assert(b <= a);
-        return a - b;
+    function safeMult(uint256 x, uint256 y) internal returns(uint256) {
+        uint256 z = x * y;
+        assert((x == 0)||(z/x == y));
+        return z;
     }
-
-    function add(uint256 a, uint256 b) internal returns (uint256) {
-        uint256 c = a + b;
-        assert(c >= a);
-        return c;
-    }
-
-    function max64(uint64 a, uint64 b) internal constant returns (uint64) {
-        return a >= b ? a : b;
-    }
-
-    function min64(uint64 a, uint64 b) internal constant returns (uint64) {
-        return a < b ? a : b;
-    }
-
-    function max256(uint256 a, uint256 b) internal constant returns (uint256) {
-        return a >= b ? a : b;
-    }
-
-    function min256(uint256 a, uint256 b) internal constant returns (uint256) {
-        return a < b ? a : b;
-    }
-
 }
 
 
@@ -110,9 +86,7 @@ contract Haltable is Ownable {
 }
 
 
-contract FluencePreSale is Haltable {
-    using SafeMath for uint;
-    using SafeMath for uint256;
+contract FluencePreSale is Haltable, SafeMath {
 
     mapping (address => uint256) public balanceOf;
 
@@ -193,7 +167,7 @@ contract FluencePreSale is Haltable {
     }
 
     function setBeneficiary(address to) onlyOwner external {
-        require(to != 0x0);
+        require(to != address(0));
         beneficiary = to;
     }
 
@@ -208,20 +182,22 @@ contract FluencePreSale is Haltable {
         uint256 tokensToIssue;
 
         if(msg.value >= expertThreshold) {
-            tokensToIssue = (msg.value / 1 ether).mul(expertTokensPerEth);
+            tokensToIssue = safeMult(msg.value, expertTokensPerEth);
         } else if(msg.value >= advancedThreshold) {
-            tokensToIssue = (msg.value / 1 ether).mul(advancedTokensPerEth);
+            tokensToIssue = safeMult(msg.value, advancedTokensPerEth);
         } else {
-            tokensToIssue = (msg.value / 1 ether).mul(basicTokensPerEth);
+            tokensToIssue = safeMult(msg.value, basicTokensPerEth);
         }
 
-        totalSupply = totalSupply.add(tokensToIssue);
+        assert(tokensToIssue > 0);
+
+        totalSupply = safeAdd(totalSupply, tokensToIssue);
         require(totalSupply <= SUPPLY_LIMIT);
 
-        etherContributions[_address] = etherContributions[_address].add(msg.value);
+        etherContributions[_address] = safeAdd(etherContributions[_address], msg.value);
         uint collectedBefore = etherCollected;
-        etherCollected = etherCollected.add(msg.value);
-        balanceOf[_address] = balanceOf[_address].add(tokensToIssue);
+        etherCollected = safeAdd(etherCollected, msg.value);
+        balanceOf[_address] = safeAdd(balanceOf[_address], tokensToIssue);
 
         NewContribution(_address, tokensToIssue, msg.value);
 
@@ -250,8 +226,8 @@ contract FluencePreSale is Haltable {
         etherContributions[msg.sender] = 0; // Clear state
 
         // Reduce counters
-        etherCollected = etherCollected.sub(amount);
-        totalSupply = totalSupply.sub(balanceOf[msg.sender]);
+        etherCollected = safeSubtract(etherCollected, amount);
+        totalSupply = safeSubtract(totalSupply, tokensToBurn);
 
         msg.sender.transfer(amount); // Process refund. In case of error, it will be thrown
 
