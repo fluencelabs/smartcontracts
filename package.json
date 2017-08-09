@@ -6,6 +6,10 @@
     "run": "truffle build"
   },
   "dependencies": {
+    "babel-polyfill": "^6.23.0",
     "truffle": "^3.4.7"
+  },
+  "devDependencies": {
+    "babel-register": "^6.24.1"
   }
 }

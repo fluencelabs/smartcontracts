@@ -1,5 +1,5 @@
 var FluencePreSale = artifacts.require("./FluencePreSale.sol");
 
 module.exports = function(deployer) {
-  deployer.deploy(FluencePreSale, 673000, 674000);
+  deployer.deploy(FluencePreSale, 1, 674000, 1000);
 };

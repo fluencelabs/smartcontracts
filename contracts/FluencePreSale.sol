@@ -101,7 +101,7 @@ contract FluencePreSale is Haltable, SafeMath {
     uint   public constant decimals = 18;
 
     // 6% of tokens
-    uint256 public constant SUPPLY_LIMIT = 6000000;
+    uint256 public constant SUPPLY_LIMIT = 6000000 ether;
 
     // What is given to contributors, <= SUPPLY_LIMIT
     uint256 public totalSupply;
@@ -159,11 +159,12 @@ contract FluencePreSale is Haltable, SafeMath {
         _;
     }
 
-    function FluencePreSale(uint _startAtBlock, uint _endAtBlock){
+    function FluencePreSale(uint _startAtBlock, uint _endAtBlock, uint softCapEther){
         require(_startAtBlock > 0 && _endAtBlock > 0);
         beneficiary = msg.sender;
         startAtBlock = _startAtBlock;
         endAtBlock = _endAtBlock;
+        softCap = softCapEther * 1 ether;
     }
 
     function setBeneficiary(address to) onlyOwner external {
