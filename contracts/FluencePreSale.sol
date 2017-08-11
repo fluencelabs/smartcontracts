@@ -4,21 +4,21 @@ pragma solidity ^0.4.13;
 /* taking ideas from FirstBlood token */
 contract SafeMath {
 
-    function safeAdd(uint256 x, uint256 y) internal returns(uint256) {
+    function safeAdd(uint256 x, uint256 y) internal returns (uint256) {
         uint256 z = x + y;
         assert((z >= x) && (z >= y));
         return z;
     }
 
-    function safeSubtract(uint256 x, uint256 y) internal returns(uint256) {
+    function safeSubtract(uint256 x, uint256 y) internal returns (uint256) {
         assert(x >= y);
         uint256 z = x - y;
         return z;
     }
 
-    function safeMult(uint256 x, uint256 y) internal returns(uint256) {
+    function safeMult(uint256 x, uint256 y) internal returns (uint256) {
         uint256 z = x * y;
-        assert((x == 0)||(z/x == y));
+        assert((x == 0) || (z / x == y));
         return z;
     }
 }
@@ -111,14 +111,17 @@ contract FluencePreSale is Haltable, SafeMath {
 
     // Basic price
     uint256 public constant basicThreshold = 500 finney;
+
     uint public constant basicTokensPerEth = 1500;
 
     // Advanced price
     uint256 public constant advancedThreshold = 5 ether;
+
     uint public constant advancedTokensPerEth = 2250;
 
     // Expert price
     uint256 public constant expertThreshold = 100 ether;
+
     uint public constant expertTokensPerEth = 3000;
 
     // As we have different prices for different amounts,
@@ -135,77 +138,111 @@ contract FluencePreSale is Haltable, SafeMath {
 
     uint public endAtBlock;
 
+    // All tokens are sold
     event GoalReached(uint amountRaised);
 
+    // Minimal ether cap collected
     event SoftCapReached(uint softCap);
 
+    // New contribution received and tokens are issued
     event NewContribution(address indexed holder, uint256 tokenAmount, uint256 etherAmount);
 
+    // Ether is taken back
     event Refunded(address indexed holder, uint256 amount);
 
     // If soft cap is reached, withdraw should be available
     modifier softCapReached {
-        require(etherCollected >= softCap);
+        if (etherCollected < softCap) {
+            revert();
+        }
+        assert(etherCollected >= softCap);
         _;
     }
 
+    // Allow contribution only during presale
     modifier duringPresale {
-        require(block.number >= startAtBlock && block.number <= endAtBlock && totalSupply < SUPPLY_LIMIT);
+        if (block.number < startAtBlock || block.number > endAtBlock || totalSupply >= SUPPLY_LIMIT) {
+            revert();
+        }
+        assert(block.number >= startAtBlock && block.number <= endAtBlock && totalSupply < SUPPLY_LIMIT);
         _;
     }
 
+    // Allow withdraw only during refund
     modifier duringRefund {
-        require(block.number > endAtBlock && etherCollected < softCap && this.balance > 0);
+        if(block.number <= endAtBlock || etherCollected >= softCap || this.balance == 0) {
+            revert();
+        }
+        assert(block.number > endAtBlock && etherCollected < softCap && this.balance > 0);
         _;
     }
 
-    function FluencePreSale(uint _startAtBlock, uint _endAtBlock, uint softCapEther){
+    function FluencePreSale(uint _startAtBlock, uint _endAtBlock, uint softCapInEther){
         require(_startAtBlock > 0 && _endAtBlock > 0);
         beneficiary = msg.sender;
         startAtBlock = _startAtBlock;
         endAtBlock = _endAtBlock;
-        softCap = softCapEther * 1 ether;
+        softCap = softCapInEther * 1 ether;
     }
 
+    // Change beneficiary address
     function setBeneficiary(address to) onlyOwner external {
         require(to != address(0));
         beneficiary = to;
     }
 
+    // Withdraw contract's balance to beneficiary account
     function withdraw() onlyOwner softCapReached external {
         require(this.balance > 0);
         beneficiary.transfer(this.balance);
     }
 
+    // Process contribution, issue tokens to user
     function contribute(address _address) private stopInEmergency duringPresale {
-        require(msg.value >= basicThreshold || owner == _address); // Minimal contribution
+        if(msg.value < basicThreshold && owner != _address) {
+            revert();
+        }
+        assert(msg.value >= basicThreshold || owner == _address);
+        // Minimal contribution
 
         uint256 tokensToIssue;
 
-        if(msg.value >= expertThreshold) {
+        if (msg.value >= expertThreshold) {
             tokensToIssue = safeMult(msg.value, expertTokensPerEth);
-        } else if(msg.value >= advancedThreshold) {
+        }
+        else if (msg.value >= advancedThreshold) {
             tokensToIssue = safeMult(msg.value, advancedTokensPerEth);
-        } else {
+        }
+        else {
             tokensToIssue = safeMult(msg.value, basicTokensPerEth);
         }
 
         assert(tokensToIssue > 0);
 
         totalSupply = safeAdd(totalSupply, tokensToIssue);
-        require(totalSupply <= SUPPLY_LIMIT);
 
+        // Goal is already reached, can't issue any more tokens
+        if(totalSupply > SUPPLY_LIMIT) {
+            revert();
+        }
+        assert(totalSupply <= SUPPLY_LIMIT);
+
+        // Saving ether contributions for the case of refund
         etherContributions[_address] = safeAdd(etherContributions[_address], msg.value);
+
+        // Track ether before adding current contribution to notice the event of reaching soft cap
         uint collectedBefore = etherCollected;
         etherCollected = safeAdd(etherCollected, msg.value);
+
+        // Tokens are issued
         balanceOf[_address] = safeAdd(balanceOf[_address], tokensToIssue);
 
         NewContribution(_address, tokensToIssue, msg.value);
 
-        if(totalSupply == SUPPLY_LIMIT) {
+        if (totalSupply == SUPPLY_LIMIT) {
             GoalReached(etherCollected);
         }
-        if(etherCollected >= softCap && collectedBefore < softCap) {
+        if (etherCollected >= softCap && collectedBefore < softCap) {
             SoftCapReached(etherCollected);
         }
     }
@@ -217,20 +254,28 @@ contract FluencePreSale is Haltable, SafeMath {
     function refund() stopInEmergency duringRefund external {
         uint tokensToBurn = balanceOf[msg.sender];
 
-        require(tokensToBurn > 0); // Sender must have tokens
-        balanceOf[msg.sender] = 0; // Burn
 
-        uint amount = etherContributions[msg.sender]; // User contribution amount
+        // Sender must have tokens
+        require(tokensToBurn > 0);
 
-        require(amount > 0); // Amount must be positive -- refund is not processed yet
+        // Burn
+        balanceOf[msg.sender] = 0;
 
-        etherContributions[msg.sender] = 0; // Clear state
+        // User contribution amount
+        uint amount = etherContributions[msg.sender];
+
+        // Amount must be positive -- refund is not processed yet
+        assert(amount > 0);
+
+        etherContributions[msg.sender] = 0;
+        // Clear state
 
         // Reduce counters
         etherCollected = safeSubtract(etherCollected, amount);
         totalSupply = safeSubtract(totalSupply, tokensToBurn);
 
-        msg.sender.transfer(amount); // Process refund. In case of error, it will be thrown
+        // Process refund. In case of error, it will be thrown
+        msg.sender.transfer(amount);
 
         Refunded(msg.sender, amount);
     }
