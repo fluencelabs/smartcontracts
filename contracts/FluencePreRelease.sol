@@ -2,6 +2,7 @@ pragma solidity ^0.4.18;
 
 import 'zeppelin-solidity/contracts/math/SafeMath.sol';
 import 'zeppelin-solidity/contracts/token/ERC20Basic.sol';
+import 'zeppelin-solidity/contracts/lifecycle/Destructible.sol';
 import './FluenceToken.sol';
 import './Haltable.sol';
 
@@ -9,10 +10,8 @@ interface Certifier {
     function certified(address _who) constant returns (bool);
 }
 
-contract FluencePreRelease is Haltable {
+contract FluencePreRelease is Haltable, Destructible {
     using SafeMath for uint256;
-
-    bool public releasingEnabled = false;
 
     mapping(address => uint256) public released;
 
@@ -44,10 +43,6 @@ contract FluencePreRelease is Haltable {
         token = FluenceToken(_token);
     }
 
-    function destroy() onlyOwner onlyInEmergency public {
-        selfdestruct(owner);
-    }
-
     function presetReleased(address _to, uint256 amount) onlyOwner onlyInEmergency public {
         released[_to] = amount;
     }
@@ -60,7 +55,10 @@ contract FluencePreRelease is Haltable {
         amount = preSale.balanceOf(msg.sender).sub(released[msg.sender]);
         // issue tokens
         released[msg.sender] = released[msg.sender].add(amount);
-        token.mint(msg.sender, amount);
+        assert(released[msg.sender] == preSale.balanceOf(msg.sender));
+
+        token.transfer(msg.sender, amount);
+        assert(token.balanceOf(msg.sender) == preSale.balanceOf(msg.sender));
     }
 
 }
