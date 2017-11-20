@@ -34,6 +34,20 @@ contract FluencePreRelease is Haltable {
         halted = true;
     }
 
+    function setCertifier(address _certifier) onlyOwner public {
+        require(_certifier != address(0x0));
+        certifier = Certifier(_certifier);
+    }
+
+    function setToken(address _token) onlyOwner public {
+        require(_token != address(0x0));
+        token = FluenceToken(_token);
+    }
+
+    function destroy() onlyOwner onlyInEmergency public {
+        selfdestruct(owner);
+    }
+
     function presetReleased(address _to, uint256 amount) onlyOwner onlyInEmergency public {
         released[_to] = amount;
     }
