@@ -1,15 +1,15 @@
 pragma solidity ^0.4.18;
 
-import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
 import 'zeppelin-solidity/contracts/math/SafeMath.sol';
 import 'zeppelin-solidity/contracts/token/ERC20Basic.sol';
 import './FluenceToken.sol';
+import './Haltable.sol';
 
 interface Certifier {
     function certified(address _who) constant returns (bool);
 }
 
-contract FluencePreRelease is Ownable {
+contract FluencePreRelease is Haltable {
     using SafeMath for uint256;
 
     bool public releasingEnabled = false;
@@ -29,30 +29,23 @@ contract FluencePreRelease is Ownable {
 
         require(_token != address(0x0));
         token = FluenceToken(_token);
+
+        // Halt initially
+        halted = true;
     }
 
-    function presetReleased(address _to, uint256 amount) onlyOwner public {
-        require(!releasingEnabled);
+    function presetReleased(address _to, uint256 amount) onlyOwner onlyInEmergency public {
         released[_to] = amount;
     }
 
-    function enableReleasing() onlyOwner public {
-        releasingEnabled = true;
-    }
-
-    function disableReleasing() onlyOwner public {
-        releasingEnabled = false;
-    }
-
-    function release() public returns(uint256 amount) {
-        require(releasingEnabled);
+    function release() public stopInEmergency returns(uint256 amount) {
         // check if verified
         require(certifier.certified(msg.sender));
         // check fpt balance
         // subtract $released
         amount = preSale.balanceOf(msg.sender).sub(released[msg.sender]);
         // issue tokens
-        released[msg.sender] = amount;
+        released[msg.sender] = released[msg.sender].add(amount);
         token.mint(msg.sender, amount);
     }
 
