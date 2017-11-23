@@ -1,25 +1,33 @@
 pragma solidity ^0.4.18;
 
+
 import 'zeppelin-solidity/contracts/math/SafeMath.sol';
 import 'zeppelin-solidity/contracts/token/ERC20Basic.sol';
+import 'zeppelin-solidity/contracts/token/StandardToken.sol';
 import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
+
 
 interface Certifier {
     function certified(address _who) constant returns (bool);
 }
+
 
 contract FluencePreRelease is Ownable {
     event Released(address indexed caller, address indexed _to, uint256 amount);
 
     using SafeMath for uint256;
 
-    mapping(address => uint256) public released;
+    mapping (address => uint256) public released;
 
     address public certifier;
+
     address public preSale;
+
     address public token;
 
     bool public launched;
+
+    address public spender;
 
     modifier beforeLaunch {
         require(!launched);
@@ -31,7 +39,7 @@ contract FluencePreRelease is Ownable {
         _;
     }
 
-    function FluencePreRelease(address _certifier, address _preSale, address _token) {
+    function FluencePreRelease(address _certifier, address _preSale, address _token, address _spender) {
         require(_certifier != address(0x0));
         require(_preSale != address(0x0));
         require(_token != address(0x0));
@@ -39,6 +47,13 @@ contract FluencePreRelease is Ownable {
         certifier = _certifier;
         preSale = _preSale;
         token = _token;
+
+        if (_spender == address(0x0)) {
+            spender = msg.sender;
+        }
+        else {
+            spender = _spender;
+        }
     }
 
     // Can preset only before releasing is launched
@@ -51,9 +66,9 @@ contract FluencePreRelease is Ownable {
         launched = true;
     }
 
-    function release(address _holder) public afterLaunch returns(uint256 amount) {
+    function release(address _holder) public afterLaunch returns (uint256 amount) {
         address beneficiary = _holder;
-        if(beneficiary == address(0x0)) beneficiary = msg.sender;
+        if (beneficiary == address(0x0)) beneficiary = msg.sender;
         // check if verified
         require(Certifier(certifier).certified(beneficiary));
 
@@ -63,11 +78,11 @@ contract FluencePreRelease is Ownable {
         amount = ERC20Basic(preSale).balanceOf(source).sub(released[source]);
         require(amount > 0);
 
-        // issue tokens
+        // release tokens
         released[source] = released[source].add(amount);
         assert(released[source] == ERC20Basic(preSale).balanceOf(source));
 
-        ERC20Basic(token).transfer(beneficiary, amount);
+        assert(StandardToken(token).transferFrom(spender, beneficiary, amount));
         Released(source, beneficiary, amount);
     }
 
@@ -85,9 +100,10 @@ contract FluencePreRelease is Ownable {
     }
 
     function() public {
-        if(msg.data.length == 20) {
+        if (msg.data.length == 20) {
             release(bytesToAddress(msg.data));
-        } else {
+        }
+        else {
             release(msg.sender);
         }
     }
